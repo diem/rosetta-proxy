@@ -1,0 +1,111 @@
+{
+  "network": {
+    "blockchain": "libra",
+    "network": "testnet"
+  },
+  "online_url": "http://localhost:3030",
+  "data_directory": "libra-data",
+  "max_online_connections": 32,
+  "max_sync_concurrency": 16,
+
+  "construction": {
+    "offline_url": "http://localhost:3030",
+    "prefunded_accounts": [
+      {
+        "account_identifier": {
+          "address": "1d45c318b5c648fbc5adda931ea82da1"
+        },
+        "privkey": "c020f245c55677cefb5259ed3c7b3baee77651acd4171c24985f5bc7bfa99485",
+        "curve_type": "edwards25519",
+        "currency": {
+          "symbol": "Coin1",
+          "decimals": 6
+        }
+      },
+      {
+        "account_identifier": {
+          "address": "e2cc8143c5531455bdbf9244a1515a08"
+        },
+        "privkey": "80430d51e0790ee9f719741e57c6d579da255013dbeb2af4c4a2b5ec19a2545c",
+        "curve_type": "edwards25519",
+        "currency": {
+          "symbol": "Coin1",
+          "decimals": 6
+        }
+      }
+    ],
+    
+    "workflows": [
+      {
+        "name": "create_account",
+        "concurrency": 1,
+        "scenarios": [
+        ]
+      },
+      {
+        "name": "request_funds",
+        "concurrency": 1,
+        "scenarios": [
+        ]
+      },
+      {
+        "name": "transfer",
+        "concurrency": 2,
+        "scenarios": [
+          {
+            "name": "transfer",
+            "actions": [
+              {
+                "type": "set_variable",
+                "input": "{\"symbol\": \"Coin1\", \"decimals\": 6}",
+                "output_path": "currency"
+              },
+              {
+                "type": "find_balance",
+                "input": "{\"minimum_balance\":{\"value\":\"20000000\",\"currency\":{{currency}}}, \"create_limit\":0}",
+                "output_path": "sender"
+              },
+              {
+                "input": "{\"minimum\": \"1\", \"maximum\": \"20000000\"}",
+                "type": "random_number",
+                "output_path": "recipient_amount"
+              },
+              {
+                "type": "print_message",
+                "input": "{\"recipient_amount\": {{recipient_amount}}}"
+              },
+              {
+                "type": "math",
+                "input": "{\"operation\": \"subtraction\", \"left_value\": \"0\", \"right_value\": {{recipient_amount}}}",
+                "output_path": "sender_amount"
+              },
+              {
+                "type": "find_balance",
+                "input": "{\"not_account_identifier\": [{{sender.account_identifier}}], \"minimum_balance\": {\"value\": \"0\", \"currency\": {{currency}}}, \"create_limit\": 0}",
+                "output_path": "recipient"
+              },
+              {
+                "type": "set_variable",
+                "input": "{\"network\": \"testnet\", \"blockchain\": \"libra\"}",
+                "output_path": "transfer.network"
+              },
+              {
+                "type": "set_variable",
+                "input": "\"1\"",
+                "output_path": "transfer.confirmation_depth"
+              },
+              {
+                "type": "set_variable",
+                "input": "[{\"operation_identifier\": {\"index\": 0}, \"type\": \"sentpayment\", \"account\": {{sender.account_identifier}}, \"amount\": {\"value\": {{sender_amount}}, \"currency\": {{currency}}}}, {\"operation_identifier\": {\"index\": 1}, \"type\": \"receivedpayment\", \"account\": {{recipient.account_identifier}}, \"amount\": {\"value\": {{recipient_amount}}, \"currency\": {{currency}}}}]",
+                "output_path": "transfer.operations"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "end_conditions": {
+      "transfer": 10
+    }
+  }
+}

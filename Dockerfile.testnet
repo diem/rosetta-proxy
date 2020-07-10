@@ -1,0 +1,29 @@
+FROM debian:buster AS toolchain
+
+RUN apt-get update && apt-get install -y clang curl pkg-config libssl-dev
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain none
+ENV PATH "$PATH:/root/.cargo/bin"
+
+RUN rustup default stable
+
+WORKDIR /rosetta-proxy
+
+FROM toolchain AS builder
+
+COPY . /rosetta-proxy
+RUN cargo build --release
+
+FROM debian:buster AS prod
+
+RUN apt-get update && apt-get install -y libssl1.1 ca-certificates && apt-get clean && rm -r /var/lib/apt/lists/*
+
+RUN addgroup --system --gid 7890 rosetta && adduser --system --ingroup rosetta --no-create-home --uid 7890 rosetta
+RUN mkdir -p /opt/libra-rosetta-proxy/bin
+COPY --from=builder /rosetta-proxy/target/release/libra-rosetta-proxy /opt/libra-rosetta-proxy/bin
+
+EXPOSE 3030
+
+ENV RUST_BACKTRACE=1
+ENV RUST_LOG=libra_rosetta_proxy=debug
+
+ENTRYPOINT ["/opt/libra-rosetta-proxy/bin/libra-rosetta-proxy"]
