@@ -173,7 +173,7 @@ async fn block(block_request: BlockRequest, options: Options) -> Result<BlockRes
                 decimals: 6, // TODO: use get_currencies instead of hardcoding
             };
 
-            let status = "EXECUTED".to_string(); // NOTE: tx fees are always charged
+            let status = "executed".to_string(); // NOTE: tx fees are always charged
             
             let sent_fee_op = Operation {
                 operation_identifier: OperationIdentifier {
