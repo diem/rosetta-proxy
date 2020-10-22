@@ -112,7 +112,7 @@ async fn derive(derive_request: ConstructionDeriveRequest, options: Options) -> 
 
     let public_key = Ed25519PublicKey::from_encoded_string(&derive_request.public_key.hex_bytes)
         .map_err(|_| ApiError::deserialization_failed("Ed25519PublicKey"))?;
-    let address = AuthenticationKey::ed25519(&public_key).derived_address().to_string();
+    let address = AuthenticationKey::ed25519(&public_key).derived_address().to_string().to_lowercase();
 
     let sub_account = None;
     let account_identifier = AccountIdentifier {
