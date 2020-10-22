@@ -57,6 +57,7 @@ async fn block(block_request: BlockRequest, options: Options) -> Result<BlockRes
     };
 
     // block timestamp is in usecs, and Rosetta wants millis
+    // Note that this timestamp is 0 for genesis block and any following timeout blocks
     let timestamp = metadata.timestamp / 1000;
 
     let status = libra::vmstatus_to_str(&tx[1].vm_status);
