@@ -94,6 +94,10 @@ async fn network_options(network_request: NetworkRequest, options: Options) -> R
         operation_statuses,
         operation_types,
         errors,
+        historical_balance_lookup: false,
+        timestamp_start_index: Some(3), // FIXME: hardcoded based on current testnet
+        call_methods: vec![],
+        balance_exemptions: vec![],
     };
 
     let response = NetworkOptionsResponse {

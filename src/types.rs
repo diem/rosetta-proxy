@@ -7,6 +7,31 @@ pub struct Allow {
     pub operation_statuses: Vec<OperationStatus>,
     pub operation_types: Vec<String>,
     pub errors: Vec<Error>,
+    pub historical_balance_lookup: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timestamp_start_index: Option<u64>,
+    pub call_methods: Vec<String>,
+    pub balance_exemptions: Vec<BalanceExemption>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct BalanceExemption {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sub_account_address: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub currency: Option<Currency>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exemption_type: Option<ExemptionType>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum ExemptionType {
+    #[serde(rename = "greater_or_equal")]
+    GreaterOrEqual,
+    #[serde(rename = "less_or_equal")]
+    LessOrEqual,
+    #[serde(rename = "dynamic")]
+    Dynanic,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
