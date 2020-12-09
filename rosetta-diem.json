@@ -1,10 +1,10 @@
 {
   "network": {
-    "blockchain": "libra",
-    "network": "testnet"
+    "blockchain": "diem",
+    "network": "testing"
   },
   "online_url": "http://localhost:3030",
-  "data_directory": "libra-data",
+  "data_directory": "diem-data",
   "max_online_connections": 128,
   "max_sync_concurrency": 64,
 
@@ -13,28 +13,28 @@
     "prefunded_accounts": [
       {
         "account_identifier": {
-          "address": "1d45c318b5c648fbc5adda931ea82da1"
+          "address": "4f006529b9d1f8534fee494e5b455b7b"
         },
-        "privkey": "c020f245c55677cefb5259ed3c7b3baee77651acd4171c24985f5bc7bfa99485",
+        "privkey": "4bfd65769a4fe70f1e830f56f5fee395565bee5613e2b97dfc1ac43683b05cb0",
         "curve_type": "edwards25519",
         "currency": {
-          "symbol": "Coin1",
+          "symbol": "XUS",
           "decimals": 6
         }
       },
       {
         "account_identifier": {
-          "address": "e2cc8143c5531455bdbf9244a1515a08"
+          "address": "437286cc8a7d8ee355cbfca51cf8dbe2"
         },
-        "privkey": "80430d51e0790ee9f719741e57c6d579da255013dbeb2af4c4a2b5ec19a2545c",
+        "privkey": "6cc6f8b273d9b14740a599ca313da1823bdb764b56c9025d5fef424bfd6fe742",
         "curve_type": "edwards25519",
         "currency": {
-          "symbol": "Coin1",
+          "symbol": "XUS",
           "decimals": 6
         }
       }
     ],
-    
+
     "workflows": [
       {
         "name": "create_account",
@@ -57,7 +57,7 @@
             "actions": [
               {
                 "type": "set_variable",
-                "input": "{\"symbol\": \"Coin1\", \"decimals\": 6}",
+                "input": "{\"symbol\": \"XUS\", \"decimals\": 6}",
                 "output_path": "currency"
               },
               {
@@ -86,7 +86,7 @@
               },
               {
                 "type": "set_variable",
-                "input": "{\"network\": \"testnet\", \"blockchain\": \"libra\"}",
+                "input": "{\"network\": \"testing\", \"blockchain\": \"diem\"}",
                 "output_path": "transfer.network"
               },
               {
