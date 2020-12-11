@@ -208,8 +208,8 @@ async fn payloads(
 
     let currency = TypeTag::Struct(StructTag {
         address: AccountAddress::from_hex_literal("0x1").unwrap(),
-        module: Identifier::new("Coin1".to_string()).unwrap(),
-        name: Identifier::new("Coin1".to_string()).unwrap(),
+        module: Identifier::new(transfer.currency.clone()).unwrap(),
+        name: Identifier::new(transfer.currency.clone()).unwrap(),
         type_params: vec![],
     });
     let payee = transfer.receiver.clone();
@@ -310,10 +310,10 @@ async fn parse(
             return Err(ApiError::BadTransactionPayload);
         };
 
-    // TODO: switch to coin_for_name()
     if currency != coins::xus_tag() {
         return Err(ApiError::BadCoin);
     }
+    let currency_code = "XUS".to_string();
 
     let operations = vec![
         Operation {
@@ -323,7 +323,7 @@ async fn parse(
             },
             related_operations: None,
             type_: "sentpayment".to_string(),
-            status: "".to_string(),
+            status: Option::None,
             account: Some(AccountIdentifier {
                 address: (&raw_transaction.sender()).into(),
                 sub_account: None,
@@ -331,7 +331,7 @@ async fn parse(
             amount: Some(Amount {
                 value: format!("-{}", amount),
                 currency: Currency {
-                    symbol: "Coin1".to_string(),
+                    symbol: currency_code.clone(),
                     decimals: 6,
                 },
             }),
@@ -346,7 +346,7 @@ async fn parse(
                 network_index: None,
             }]),
             type_: "receivedpayment".to_string(),
-            status: "".to_string(),
+            status: Option::None,
             account: Some(AccountIdentifier {
                 address: (&payee).into(),
                 sub_account: None,
@@ -354,7 +354,7 @@ async fn parse(
             amount: Some(Amount {
                 value: format!("{}", amount),
                 currency: Currency {
-                    symbol: "Coin1".to_string(),
+                    symbol: currency_code.clone(),
                     decimals: 6,
                 },
             }),

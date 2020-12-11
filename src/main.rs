@@ -29,6 +29,12 @@ async fn handle_rejection(err: warp::Rejection) -> Result<impl warp::Reply, Infa
         code = 0;
         retriable = false;
         details = None;
+    } else if let Some(e) = err.find::<warp::filters::body::BodyDeserializeError>() {
+        message = e.to_string();
+        retriable = false;
+        status = StatusCode::BAD_REQUEST;
+        code = 0;
+        details = None;
     } else if let Some(api_error) = err.find::<ApiError>() {
         message = api_error.message();
         retriable = api_error.retriable();

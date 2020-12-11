@@ -70,7 +70,7 @@ pub struct Operation {
     pub related_operations: Option<Vec<OperationIdentifier>>,
     #[serde(rename = "type")]
     pub type_: String,
-    pub status: String,
+    pub status: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub account: Option<AccountIdentifier>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -308,8 +308,7 @@ pub struct MempoolTransactionResponse {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct MetadataRequest {
-}
+pub struct MetadataRequest {}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct NetworkListResponse {
@@ -367,11 +366,11 @@ pub struct Peer {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum SignatureType {
-    #[serde(rename="ecdsa")]
+    #[serde(rename = "ecdsa")]
     ECDSA,
-    #[serde(rename="ecdsa_recovery")]
+    #[serde(rename = "ecdsa_recovery")]
     ECDSARecovery,
-    #[serde(rename="ed25519")]
+    #[serde(rename = "ed25519")]
     Ed25519,
 }
 

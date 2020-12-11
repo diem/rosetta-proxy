@@ -132,7 +132,7 @@ async fn block(block_request: BlockRequest, options: Options) -> Result<BlockRes
             };
 
             let type_ = type_.to_string();
-            let status = status.to_string();
+            let status = Some(status.to_string());
             let account = account.map(|account| AccountIdentifier {
                 address: account.0.to_lowercase(),
                 sub_account: None,
@@ -192,7 +192,7 @@ async fn block(block_request: BlockRequest, options: Options) -> Result<BlockRes
                 },
                 related_operations: None,
                 type_: "sentfee".to_string(),
-                status: status.clone(),
+                status: Some(status),
                 account: Some(AccountIdentifier {
                     address: sender.to_string().to_lowercase(),
                     sub_account: None,
