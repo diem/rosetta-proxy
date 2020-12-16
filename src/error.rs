@@ -1,5 +1,5 @@
 use crate::{
-    libra,
+    diem,
     types::{self, ErrorDetails},
 };
 use thiserror::Error;
@@ -9,14 +9,14 @@ use warp::{http::StatusCode, reply::Reply};
 pub enum ApiError {
     #[error("bad block request")]
     BadBlockRequest,
-    #[error("libra error: {0:?}")]
-    LibraError(#[from] libra::LibraError),
+    #[error("diem error: {0:?}")]
+    DiemError(#[from] diem::DiemError),
     #[error("bad network")]
     BadNetwork,
     #[error("deserialization failed: {0}")]
     DeserializationFailed(String),
     #[error("serialization failed: {0:?}")]
-    SerializationFailed(#[from] lcs::Error),
+    SerializationFailed(#[from] bcs::Error),
     #[error("bad transfer operations")]
     BadTransferOperations(String),
     #[error("account not found")]
@@ -45,7 +45,7 @@ impl ApiError {
     pub fn code(&self) -> u64 {
         match self {
             ApiError::BadBlockRequest => 20,
-            ApiError::LibraError(_) => 30,
+            ApiError::DiemError(_) => 30,
             ApiError::BadNetwork => 40,
             ApiError::DeserializationFailed(_) => 50,
             ApiError::SerializationFailed(_) => 60,
@@ -66,7 +66,7 @@ impl ApiError {
     pub fn retriable(&self) -> bool {
         match self {
             ApiError::BadBlockRequest => false,
-            ApiError::LibraError(_) => true,
+            ApiError::DiemError(_) => true,
             ApiError::BadNetwork => false,
             ApiError::DeserializationFailed(_) => false,
             ApiError::SerializationFailed(_) => false,
@@ -87,7 +87,7 @@ impl ApiError {
     pub fn status_code(&self) -> StatusCode {
         match self {
             ApiError::BadBlockRequest => StatusCode::BAD_REQUEST,
-            ApiError::LibraError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ApiError::DiemError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             ApiError::BadNetwork => StatusCode::BAD_REQUEST,
             ApiError::DeserializationFailed(_) => StatusCode::BAD_REQUEST,
             ApiError::SerializationFailed(_) => StatusCode::BAD_REQUEST,
@@ -113,9 +113,7 @@ impl ApiError {
 
     pub(crate) fn details(&self) -> ErrorDetails {
         let error = format!("{}", self);
-        ErrorDetails {
-            error,
-        }
+        ErrorDetails { error }
     }
 
     pub fn deserialization_failed(type_: &str) -> ApiError {
@@ -131,7 +129,7 @@ impl ApiError {
                 details: None,
             },
             types::Error {
-                message: "libra error".to_string(),
+                message: "diem error".to_string(),
                 code: 30,
                 retriable: true,
                 details: None,
@@ -243,7 +241,6 @@ impl std::convert::From<ApiError> for warp::reject::Rejection {
 
 impl Reply for ApiError {
     fn into_response(self) -> warp::reply::Response {
-        warp::reply::json(&self.into_error())
-            .into_response()
+        warp::reply::json(&self.into_error()).into_response()
     }
 }

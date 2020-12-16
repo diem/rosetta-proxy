@@ -1,66 +1,72 @@
 use crate::{
     consts,
+    diem::{self, Diem},
     error::ApiError,
     filters::{handle, with_options},
-    libra::{self, Libra},
     options::Options,
-    types::{AccountIdentifier, Amount, Block, BlockIdentifier, BlockRequest, BlockResponse, Currency, Operation, OperationIdentifier, Transaction, TransactionIdentifier},
+    types::{
+        AccountIdentifier, Amount, Block, BlockIdentifier, BlockRequest, BlockResponse, Currency,
+        Operation, OperationIdentifier, Transaction, TransactionIdentifier,
+    },
 };
-use libra_json_rpc_client::views::{AmountView, EventDataView, TransactionDataView};
+use diem_json_rpc_client::views::{AmountView, EventDataView, TransactionDataView};
 use log::debug;
 use warp::Filter;
 
-pub fn routes(options: Options) -> impl Filter<Extract=impl warp::Reply, Error=warp::Rejection> + Clone {
-    warp::post()
-        .and(
-            warp::path!("block")
-                .and(warp::body::json())
-                .and(with_options(options.clone()))
-                .and_then(handle(block))
-        )
+pub fn routes(
+    options: Options,
+) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+    warp::post().and(
+        warp::path!("block")
+            .and(warp::body::json())
+            .and(with_options(options.clone()))
+            .and_then(handle(block)),
+    )
 }
 
 async fn block(block_request: BlockRequest, options: Options) -> Result<BlockResponse, ApiError> {
     debug!("/block");
 
     let network_identifier = block_request.network_identifier;
-    if network_identifier.blockchain != consts::BLOCKCHAIN || network_identifier.network != options.network {
+    if network_identifier.blockchain != consts::BLOCKCHAIN
+        || network_identifier.network != options.network
+    {
         return Err(ApiError::BadNetwork);
     }
 
-    let libra = Libra::new(&options.libra_endpoint);
+    let diem = Diem::new(&options.diem_endpoint);
 
     let block_version = block_request
         .block_identifier
         .index
         .ok_or_else(|| ApiError::BadBlockRequest)?;
 
-    let metadata = libra.get_metadata(Some(block_version)).await?;
+    let metadata = diem.get_metadata(Some(block_version)).await?;
     let tx = if block_version == 0 {
         // For the genesis block, we populate parent_block_identifier with the
         // same genesis block. Refer to
         // https://www.rosetta-api.org/docs/common_mistakes.html#malformed-genesis-block
-        let one_tx = libra.get_transactions(block_version, 1, true).await?;
+        let one_tx = diem.get_transactions(block_version, 1, true).await?;
         vec![one_tx[0].clone(), one_tx[0].clone()]
     } else {
-        libra.get_transactions(block_version - 1, 2, true).await?
+        diem.get_transactions(block_version - 1, 2, true).await?
     };
 
     let block_identifier = BlockIdentifier {
         index: tx[1].version,
-        hash: tx[1].hash.clone(),
+        hash: tx[1].hash.clone().to_string(),
     };
 
     let parent_block_identifier = BlockIdentifier {
         index: tx[0].version,
-        hash: tx[0].hash.clone(),
+        hash: tx[0].hash.clone().to_string(),
     };
 
     // block timestamp is in usecs, and Rosetta wants millis
     // Note that this timestamp is 0 for genesis block and any following timeout blocks
     let timestamp = metadata.timestamp / 1000;
 
-    let status = libra::vmstatus_to_str(&tx[1].vm_status);
+    let status = diem::vmstatus_to_str(&tx[1].vm_status);
 
     let mut operations = tx[1]
         .events
@@ -71,15 +77,15 @@ async fn block(block_request: BlockRequest, options: Options) -> Result<BlockRes
             // out. We also filter out some other events we don't care about.
             match &event.data {
                 // events that are represented better with sent/recv payment
-                EventDataView::Mint { .. } |
-                EventDataView::ReceivedMint { .. } |
-                EventDataView::Preburn { .. } |
-                EventDataView::Burn { .. } |
-                EventDataView::CancelBurn { .. } => false,
+                EventDataView::Mint { .. }
+                | EventDataView::ReceivedMint { .. }
+                | EventDataView::Preburn { .. }
+                | EventDataView::Burn { .. }
+                | EventDataView::CancelBurn { .. } => false,
                 // events that we don't care about
-                EventDataView::ComplianceKeyRotation { .. } |
-                EventDataView::BaseUrlRotation { .. } |
-                EventDataView::Unknown { .. } => false,
+                EventDataView::ComplianceKeyRotation { .. }
+                | EventDataView::BaseUrlRotation { .. }
+                | EventDataView::Unknown { .. } => false,
                 _ => true,
             }
         })
@@ -109,30 +115,27 @@ async fn block(block_request: BlockRequest, options: Options) -> Result<BlockRes
                 EventDataView::BaseUrlRotation { .. } => unreachable!(),
                 EventDataView::Unknown { .. } => unreachable!(),
 
-                EventDataView::ToLBRExchangeRateUpdate { .. } =>
-                    ("to_lbr_exchange_rate_update", None, None),
-                EventDataView::AdminTransaction { .. } =>
-                    ("upgrade", None, None),
-                EventDataView::NewEpoch { .. } =>
-                    ("newepoch", None, None),
-                EventDataView::NewBlock { .. } =>
-                    ("newblock", None, None),
-                EventDataView::CreateAccount { .. } =>
-                    ("createaccount", None, None),
+                EventDataView::ToXDXExchangeRateUpdate { .. } => {
+                    ("to_xdx_exchange_rate_update", None, None)
+                }
+                EventDataView::AdminTransaction { .. } => ("upgrade", None, None),
+                EventDataView::NewEpoch { .. } => ("newepoch", None, None),
+                EventDataView::NewBlock { .. } => ("newblock", None, None),
+                EventDataView::CreateAccount { .. } => ("createaccount", None, None),
 
-                EventDataView::ReceivedPayment { amount, receiver, .. } =>
-                    ("receivedpayment", Some(Credit(amount)), Some(receiver)),
-                EventDataView::SentPayment { amount, sender, .. } =>
-                    ("sentpayment", Some(Debit(amount)), Some(sender)),
+                EventDataView::ReceivedPayment {
+                    amount, receiver, ..
+                } => ("receivedpayment", Some(Credit(amount)), Some(receiver)),
+                EventDataView::SentPayment { amount, sender, .. } => {
+                    ("sentpayment", Some(Debit(amount)), Some(sender))
+                }
             };
 
             let type_ = type_.to_string();
-            let status = status.to_string();
-            let account = account.map(|account| {
-                AccountIdentifier {
-                    address: account.0.to_lowercase(),
-                    sub_account: None,
-                }
+            let status = Some(status.to_string());
+            let account = account.map(|account| AccountIdentifier {
+                address: account.0.to_lowercase(),
+                sub_account: None,
             });
             let amount = amount.map(|amount| {
                 let (currency, value) = match amount {
@@ -165,7 +168,13 @@ async fn block(block_request: BlockRequest, options: Options) -> Result<BlockRes
     // of transaction status. We append the sent_fee operation to represent fee
     // payment. Fee receipt is not represented, since the fees do not live in a "balance"
     // under the association account, so are not visible to Rosetta.
-    if let TransactionDataView::UserTransaction { sender, gas_unit_price, gas_currency, .. } = &tx[1].transaction {
+    if let TransactionDataView::UserTransaction {
+        sender,
+        gas_unit_price,
+        gas_currency,
+        ..
+    } = &tx[1].transaction
+    {
         if *gas_unit_price > 0 {
             let value = gas_unit_price * tx[1].gas_used;
 
@@ -175,7 +184,7 @@ async fn block(block_request: BlockRequest, options: Options) -> Result<BlockRes
             };
 
             let status = "executed".to_string(); // NOTE: tx fees are always charged
-            
+
             let sent_fee_op = Operation {
                 operation_identifier: OperationIdentifier {
                     index: tx[1].events.len() as u64,
@@ -183,9 +192,9 @@ async fn block(block_request: BlockRequest, options: Options) -> Result<BlockRes
                 },
                 related_operations: None,
                 type_: "sentfee".to_string(),
-                status: status.clone(),
+                status: Some(status),
                 account: Some(AccountIdentifier {
-                    address: sender.to_lowercase(),
+                    address: sender.to_string().to_lowercase(),
                     sub_account: None,
                 }),
                 amount: Some(Amount {
@@ -198,25 +207,21 @@ async fn block(block_request: BlockRequest, options: Options) -> Result<BlockRes
         }
     }
 
-    let transactions = vec![
-        Transaction {
-            transaction_identifier: TransactionIdentifier {
-                hash: tx[1].hash.clone(),
-            },
-            operations,
-        }
-    ];
-    
+    let transactions = vec![Transaction {
+        transaction_identifier: TransactionIdentifier {
+            hash: tx[1].hash.clone().to_string(),
+        },
+        operations,
+    }];
+
     let block = Block {
         block_identifier,
         parent_block_identifier,
         timestamp,
         transactions,
     };
-    
-    let response = BlockResponse {
-        block,
-    };
+
+    let response = BlockResponse { block };
 
     Ok(response)
 }

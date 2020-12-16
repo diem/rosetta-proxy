@@ -1,33 +1,28 @@
-use anyhow::anyhow;
 use crate::{
     consts,
+    diem::Diem,
     error::ApiError,
     filters::{handle, with_options},
-    libra::Libra,
     options::Options,
     types::{
-        AccountIdentifier, Amount,
-        ConstructionCombineRequest, ConstructionCombineResponse,
-        ConstructionDeriveRequest, ConstructionDeriveResponse,
-        ConstructionHashRequest,
-        ConstructionMetadataRequest, ConstructionMetadataResponse,
-        ConstructionParseRequest, ConstructionParseResponse,
-        ConstructionPayloadsRequest, ConstructionPayloadsResponse,
-        ConstructionPreprocessRequest, ConstructionPreprocessResponse,
-        ConstructionSubmitRequest,
+        AccountIdentifier, Amount, ConstructionCombineRequest, ConstructionCombineResponse,
+        ConstructionDeriveRequest, ConstructionDeriveResponse, ConstructionHashRequest,
+        ConstructionMetadata, ConstructionMetadataRequest, ConstructionMetadataResponse,
+        ConstructionParseRequest, ConstructionParseResponse, ConstructionPayloadsRequest,
+        ConstructionPayloadsResponse, ConstructionPreprocessRequest,
+        ConstructionPreprocessResponse, ConstructionSubmitRequest, Currency, CurveType,
+        MetadataOptions, Operation, OperationIdentifier, SignatureType, SigningPayload,
         TransactionIdentifier, TransactionIdentifierResponse,
-        ConstructionMetadata,
-        Currency,
-        MetadataOptions, Operation, OperationIdentifier,
-        SigningPayload, SignatureType, CurveType,
     },
 };
-use libra_crypto::{
+use anyhow::anyhow;
+use diem_crypto::{
     ed25519::Ed25519PublicKey,
     ed25519::Ed25519Signature,
     hash::{CryptoHash, CryptoHasher},
-    ValidCryptoMaterialStringExt};
-use libra_types::{
+    ValidCryptoMaterialStringExt,
+};
+use diem_types::{
     account_config::constants::coins,
     chain_id::ChainId,
     transaction::{
@@ -35,12 +30,12 @@ use libra_types::{
         RawTransaction, RawTransactionHasher, SignedTransaction, Transaction, TransactionPayload,
     },
 };
+use log::debug;
 use move_core_types::{
     account_address::AccountAddress,
     identifier::Identifier,
     language_storage::{StructTag, TypeTag},
 };
-use log::debug;
 use std::{
     convert::TryInto,
     str::FromStr,
@@ -49,70 +44,65 @@ use std::{
 use transaction_builder_generated::stdlib::{self, ScriptCall};
 use warp::Filter;
 
-
-pub fn routes(options: Options) -> impl Filter<Extract=impl warp::Reply, Error=warp::Rejection> + Clone {
+pub fn routes(
+    options: Options,
+) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     warp::post()
         .and(
             warp::path!("construction" / "derive")
                 .and(warp::body::json())
                 .and(with_options(options.clone()))
-                .and_then(handle(derive))
+                .and_then(handle(derive)),
         )
-        .or(
-            warp::path!("construction" / "preprocess")
-                .and(warp::body::json())
-                .and(with_options(options.clone()))
-                .and_then(handle(preprocess))
-        )
-        .or(
-            warp::path!("construction" / "metadata")
-                .and(warp::body::json())
-                .and(with_options(options.clone()))
-                .and_then(handle(metadata))
-        )
-        .or(
-            warp::path!("construction" / "payloads")
-                .and(warp::body::json())
-                .and(with_options(options.clone()))
-                .and_then(handle(payloads))
-        )
-        .or(
-            warp::path!("construction" / "parse")
-                .and(warp::body::json())
-                .and(with_options(options.clone()))
-                .and_then(handle(parse))
-        )
-        .or(
-            warp::path!("construction" / "combine")
-                .and(warp::body::json())
-                .and(with_options(options.clone()))
-                .and_then(handle(combine))
-        )
-        .or(
-            warp::path!("construction" / "hash")
-                .and(warp::body::json())
-                .and(with_options(options.clone()))
-                .and_then(handle(hash))
-        )
-        .or(
-            warp::path!("construction" / "submit")
-                .and(warp::body::json())
-                .and(with_options(options.clone()))
-                .and_then(handle(submit))
-        )
+        .or(warp::path!("construction" / "preprocess")
+            .and(warp::body::json())
+            .and(with_options(options.clone()))
+            .and_then(handle(preprocess)))
+        .or(warp::path!("construction" / "metadata")
+            .and(warp::body::json())
+            .and(with_options(options.clone()))
+            .and_then(handle(metadata)))
+        .or(warp::path!("construction" / "payloads")
+            .and(warp::body::json())
+            .and(with_options(options.clone()))
+            .and_then(handle(payloads)))
+        .or(warp::path!("construction" / "parse")
+            .and(warp::body::json())
+            .and(with_options(options.clone()))
+            .and_then(handle(parse)))
+        .or(warp::path!("construction" / "combine")
+            .and(warp::body::json())
+            .and(with_options(options.clone()))
+            .and_then(handle(combine)))
+        .or(warp::path!("construction" / "hash")
+            .and(warp::body::json())
+            .and(with_options(options.clone()))
+            .and_then(handle(hash)))
+        .or(warp::path!("construction" / "submit")
+            .and(warp::body::json())
+            .and(with_options(options.clone()))
+            .and_then(handle(submit)))
 }
 
-async fn derive(derive_request: ConstructionDeriveRequest, options: Options) -> Result<ConstructionDeriveResponse, ApiError> {
+async fn derive(
+    derive_request: ConstructionDeriveRequest,
+    options: Options,
+) -> Result<ConstructionDeriveResponse, ApiError> {
     debug!("/construction/derive");
 
     let network_identifier = derive_request.network_identifier;
-    if network_identifier.blockchain != consts::BLOCKCHAIN || network_identifier.network != options.network {
+    if network_identifier.blockchain != consts::BLOCKCHAIN
+        || network_identifier.network != options.network
+    {
         return Err(ApiError::BadNetwork);
     }
 
     let public_key = Ed25519PublicKey::from_encoded_string(&derive_request.public_key.hex_bytes)
         .map_err(|_| ApiError::deserialization_failed("Ed25519PublicKey"))?;
-    let address = AuthenticationKey::ed25519(&public_key).derived_address().to_string().to_lowercase();
+    let address = AuthenticationKey::ed25519(&public_key)
+        .derived_address()
+        .to_string()
+        .to_lowercase();
 
     let sub_account = None;
     let account_identifier = AccountIdentifier {
@@ -120,18 +110,21 @@ async fn derive(derive_request: ConstructionDeriveRequest, options: Options) -> 
         sub_account,
     };
 
-    let response = ConstructionDeriveResponse {
-        account_identifier,
-    };
+    let response = ConstructionDeriveResponse { account_identifier };
 
     Ok(response)
 }
 
-async fn preprocess(preprocess_request: ConstructionPreprocessRequest, options: Options) -> Result<ConstructionPreprocessResponse, ApiError> {
+async fn preprocess(
+    preprocess_request: ConstructionPreprocessRequest,
+    options: Options,
+) -> Result<ConstructionPreprocessResponse, ApiError> {
     debug!("/construction/preprocess");
 
     let network_identifier = preprocess_request.network_identifier;
-    if network_identifier.blockchain != consts::BLOCKCHAIN || network_identifier.network != options.network {
+    if network_identifier.blockchain != consts::BLOCKCHAIN
+        || network_identifier.network != options.network
+    {
         return Err(ApiError::BadNetwork);
     }
 
@@ -141,25 +134,30 @@ async fn preprocess(preprocess_request: ConstructionPreprocessRequest, options: 
     let response = ConstructionPreprocessResponse {
         options: MetadataOptions {
             sender_address: (&transfer.sender).into(),
-        }
+        },
     };
 
     Ok(response)
 }
 
 // In order to construct a transaction, we need the chain id and the account sequence number.
-async fn metadata(metadata_request: ConstructionMetadataRequest, options: Options) -> Result<ConstructionMetadataResponse, ApiError> {
+async fn metadata(
+    metadata_request: ConstructionMetadataRequest,
+    options: Options,
+) -> Result<ConstructionMetadataResponse, ApiError> {
     debug!("/construction/metadata");
 
     let network_identifier = metadata_request.network_identifier;
-    if network_identifier.blockchain != consts::BLOCKCHAIN || network_identifier.network != options.network {
+    if network_identifier.blockchain != consts::BLOCKCHAIN
+        || network_identifier.network != options.network
+    {
         return Err(ApiError::BadNetwork);
     }
 
     let address = metadata_request.options.sender_address;
-    
-    let libra = Libra::new(&options.libra_endpoint);
-    let (account, metadata) = libra.get_account_with_metadata(&address).await?;
+
+    let diem = Diem::new(&options.diem_endpoint);
+    let (account, metadata) = diem.get_account_with_metadata(&address).await?;
 
     if account.is_none() {
         return Err(ApiError::AccountNotFound);
@@ -172,22 +170,28 @@ async fn metadata(metadata_request: ConstructionMetadataRequest, options: Option
         chain_id,
         sequence_number,
     };
-    let response = ConstructionMetadataResponse {
-        metadata,
-    };
+    let response = ConstructionMetadataResponse { metadata };
 
     Ok(response)
 }
 
-async fn payloads(payloads_request: ConstructionPayloadsRequest, options: Options) -> Result<ConstructionPayloadsResponse, ApiError> {
+async fn payloads(
+    payloads_request: ConstructionPayloadsRequest,
+    options: Options,
+) -> Result<ConstructionPayloadsResponse, ApiError> {
     debug!("/construction/payloads");
 
     let network_identifier = payloads_request.network_identifier;
-    if network_identifier.blockchain != consts::BLOCKCHAIN || network_identifier.network != options.network {
+    if network_identifier.blockchain != consts::BLOCKCHAIN
+        || network_identifier.network != options.network
+    {
         return Err(ApiError::BadNetwork);
     }
 
-    let ConstructionMetadata { chain_id, sequence_number } = payloads_request.metadata;
+    let ConstructionMetadata {
+        chain_id,
+        sequence_number,
+    } = payloads_request.metadata;
 
     // The only payload we allow to construct is a single p2p payment.
 
@@ -200,13 +204,12 @@ async fn payloads(payloads_request: ConstructionPayloadsRequest, options: Option
     let gas_unit_price = 0;
     let gas_currency_code = transfer.currency.clone();
     let now = SystemTime::now().duration_since(UNIX_EPOCH)?;
-    let expiration_timestamp_secs = (now + Duration::from_secs(10))
-        .as_secs();
+    let expiration_timestamp_secs = (now + Duration::from_secs(10)).as_secs();
 
     let currency = TypeTag::Struct(StructTag {
         address: AccountAddress::from_hex_literal("0x1").unwrap(),
-        module: Identifier::new("Coin1".to_string()).unwrap(),
-        name: Identifier::new("Coin1".to_string()).unwrap(),
+        module: Identifier::new(transfer.currency.clone()).unwrap(),
+        name: Identifier::new(transfer.currency.clone()).unwrap(),
         type_params: vec![],
     });
     let payee = transfer.receiver.clone();
@@ -217,7 +220,7 @@ async fn payloads(payloads_request: ConstructionPayloadsRequest, options: Option
         vec![],
         vec![],
     );
-    
+
     let raw_transaction = RawTransaction::new_script(
         sender,
         sequence_number,
@@ -229,19 +232,17 @@ async fn payloads(payloads_request: ConstructionPayloadsRequest, options: Option
         ChainId::new(chain_id),
     );
 
-    let raw_bytes = lcs::to_bytes(&raw_transaction)?;
+    let raw_bytes = bcs::to_bytes(&raw_transaction)?;
     let unsigned_transaction = hex::encode(raw_bytes);
 
     let mut bytes = RawTransactionHasher::seed().to_vec();
-    lcs::serialize_into(&mut bytes, &raw_transaction)?;
+    bcs::serialize_into(&mut bytes, &raw_transaction)?;
 
-    let payloads = vec![
-        SigningPayload {
-            address: (&sender).into(),
-            hex_bytes: hex::encode(&bytes),
-            signature_type: Some(SignatureType::Ed25519),
-        }
-    ];
+    let payloads = vec![SigningPayload {
+        address: (&sender).into(),
+        hex_bytes: hex::encode(&bytes),
+        signature_type: Some(SignatureType::Ed25519),
+    }];
 
     let response = ConstructionPayloadsResponse {
         unsigned_transaction,
@@ -251,55 +252,68 @@ async fn payloads(payloads_request: ConstructionPayloadsRequest, options: Option
     Ok(response)
 }
 
-async fn parse(parse_request: ConstructionParseRequest, options: Options) -> Result<ConstructionParseResponse, ApiError> {
+async fn parse(
+    parse_request: ConstructionParseRequest,
+    options: Options,
+) -> Result<ConstructionParseResponse, ApiError> {
     debug!("/construction/parse");
 
     let network_identifier = parse_request.network_identifier;
-    if network_identifier.blockchain != consts::BLOCKCHAIN || network_identifier.network != options.network {
+    if network_identifier.blockchain != consts::BLOCKCHAIN
+        || network_identifier.network != options.network
+    {
         return Err(ApiError::BadNetwork);
     }
 
     let (raw_transaction, account_identifier_signers) = if parse_request.signed {
         let signed_bytes = hex::decode(parse_request.transaction)?;
-        let checked_transaction = lcs::from_bytes::<SignedTransaction>(&signed_bytes)
+        let checked_transaction = bcs::from_bytes::<SignedTransaction>(&signed_bytes)
             .map_err(|_| ApiError::deserialization_failed("SignedTransaction"))?
             .check_signature()
             .map_err(|_| ApiError::BadSignature)?;
 
-        if matches!(checked_transaction.authenticator().scheme(), Scheme::MultiEd25519) {
+        if matches!(
+            checked_transaction.authenticator().scheme(),
+            Scheme::MultiEd25519
+        ) {
             return Err(ApiError::BadSignatureType);
         }
 
         let raw_transaction = checked_transaction.into_raw_transaction();
-        let signers = vec![
-            AccountIdentifier {
-                address: (&raw_transaction.sender()).into(),
-                sub_account: None,
-            },
-        ];
+        let signers = vec![AccountIdentifier {
+            address: (&raw_transaction.sender()).into(),
+            sub_account: None,
+        }];
         (raw_transaction, signers)
     } else {
         let raw_bytes = hex::decode(parse_request.transaction)?;
-        let raw_transaction: RawTransaction = lcs::from_bytes(&raw_bytes)
+        let raw_transaction: RawTransaction = bcs::from_bytes(&raw_bytes)
             .map_err(|_| ApiError::deserialization_failed("RawTransaction"))?;
         (raw_transaction, vec![])
     };
 
     // verify that script is a peer to peer payment
-    let (currency, payee, amount) = if let TransactionPayload::Script(script) = raw_transaction.clone().into_payload() {
-        if let Some(ScriptCall::PeerToPeerWithMetadata { currency, payee, amount, .. }) = ScriptCall::decode(&script) {
-            (currency, payee, amount)
+    let (currency, payee, amount) =
+        if let TransactionPayload::Script(script) = raw_transaction.clone().into_payload() {
+            if let Some(ScriptCall::PeerToPeerWithMetadata {
+                currency,
+                payee,
+                amount,
+                ..
+            }) = ScriptCall::decode(&script)
+            {
+                (currency, payee, amount)
+            } else {
+                return Err(ApiError::BadTransactionScript);
+            }
         } else {
-            return Err(ApiError::BadTransactionScript);
-        }
-    } else {
-        return Err(ApiError::BadTransactionPayload);
-    };
+            return Err(ApiError::BadTransactionPayload);
+        };
 
-    // TODO: switch to coin_for_name()
-    if currency != coins::coin1_tmp_tag() {
+    if currency != coins::xus_tag() {
         return Err(ApiError::BadCoin);
     }
+    let currency_code = "XUS".to_string();
 
     let operations = vec![
         Operation {
@@ -309,7 +323,7 @@ async fn parse(parse_request: ConstructionParseRequest, options: Options) -> Res
             },
             related_operations: None,
             type_: "sentpayment".to_string(),
-            status: "".to_string(),
+            status: None,
             account: Some(AccountIdentifier {
                 address: (&raw_transaction.sender()).into(),
                 sub_account: None,
@@ -317,7 +331,7 @@ async fn parse(parse_request: ConstructionParseRequest, options: Options) -> Res
             amount: Some(Amount {
                 value: format!("-{}", amount),
                 currency: Currency {
-                    symbol: "Coin1".to_string(),
+                    symbol: currency_code.clone(),
                     decimals: 6,
                 },
             }),
@@ -327,14 +341,12 @@ async fn parse(parse_request: ConstructionParseRequest, options: Options) -> Res
                 index: 1,
                 network_index: None,
             },
-            related_operations: Some(vec![
-                OperationIdentifier {
-                    index: 0,
-                    network_index: None,
-                },
-            ]),
+            related_operations: Some(vec![OperationIdentifier {
+                index: 0,
+                network_index: None,
+            }]),
             type_: "receivedpayment".to_string(),
-            status: "".to_string(),
+            status: None,
             account: Some(AccountIdentifier {
                 address: (&payee).into(),
                 sub_account: None,
@@ -342,7 +354,7 @@ async fn parse(parse_request: ConstructionParseRequest, options: Options) -> Res
             amount: Some(Amount {
                 value: format!("{}", amount),
                 currency: Currency {
-                    symbol: "Coin1".to_string(),
+                    symbol: currency_code.clone(),
                     decimals: 6,
                 },
             }),
@@ -357,16 +369,21 @@ async fn parse(parse_request: ConstructionParseRequest, options: Options) -> Res
     Ok(response)
 }
 
-async fn combine(combine_request: ConstructionCombineRequest, options: Options) -> Result<ConstructionCombineResponse, ApiError> {
+async fn combine(
+    combine_request: ConstructionCombineRequest,
+    options: Options,
+) -> Result<ConstructionCombineResponse, ApiError> {
     debug!("/construction/combine");
 
     let network_identifier = combine_request.network_identifier;
-    if network_identifier.blockchain != consts::BLOCKCHAIN || network_identifier.network != options.network {
+    if network_identifier.blockchain != consts::BLOCKCHAIN
+        || network_identifier.network != options.network
+    {
         return Err(ApiError::BadNetwork);
     }
 
     let raw_bytes = hex::decode(combine_request.unsigned_transaction)?;
-    let raw_transaction: RawTransaction = lcs::from_bytes(&raw_bytes)
+    let raw_transaction: RawTransaction = bcs::from_bytes(&raw_bytes)
         .map_err(|_| ApiError::deserialization_failed("RawTransaction"))?;
 
     if combine_request.signatures.len() != 1 {
@@ -375,7 +392,9 @@ async fn combine(combine_request: ConstructionCombineRequest, options: Options) 
 
     let signature = &combine_request.signatures[0];
 
-    if signature.signature_type != SignatureType::Ed25519 || signature.public_key.curve_type != CurveType::Edwards25519 {
+    if signature.signature_type != SignatureType::Ed25519
+        || signature.public_key.curve_type != CurveType::Edwards25519
+    {
         return Err(ApiError::BadSignatureType);
     }
 
@@ -390,32 +409,35 @@ async fn combine(combine_request: ConstructionCombineRequest, options: Options) 
 
     let signed_transaction = SignedTransaction::new(raw_transaction, public_key, signature);
     // TODO: verify sig
-    let signed_bytes = lcs::to_bytes(&signed_transaction)?;
+    let signed_bytes = bcs::to_bytes(&signed_transaction)?;
     let signed_transaction = hex::encode(&signed_bytes);
 
-    let response = ConstructionCombineResponse {
-        signed_transaction,
-    };
+    let response = ConstructionCombineResponse { signed_transaction };
 
     Ok(response)
 }
 
-async fn hash(hash_request: ConstructionHashRequest, options: Options) -> Result<TransactionIdentifierResponse, ApiError> {
+async fn hash(
+    hash_request: ConstructionHashRequest,
+    options: Options,
+) -> Result<TransactionIdentifierResponse, ApiError> {
     debug!("/construction/hash");
 
     let network_identifier = hash_request.network_identifier;
-    if network_identifier.blockchain != consts::BLOCKCHAIN || network_identifier.network != options.network {
+    if network_identifier.blockchain != consts::BLOCKCHAIN
+        || network_identifier.network != options.network
+    {
         return Err(ApiError::BadNetwork);
     }
 
     let signed_bytes = hex::decode(&hash_request.signed_transaction)?;
-    let signed_transaction: SignedTransaction = lcs::from_bytes(&signed_bytes)
+    let signed_transaction: SignedTransaction = bcs::from_bytes(&signed_bytes)
         .map_err(|_| ApiError::deserialization_failed("SignedTransaction"))?;
-    let hash = Transaction::UserTransaction(signed_transaction).hash().to_hex();
+    let hash = Transaction::UserTransaction(signed_transaction)
+        .hash()
+        .to_hex();
 
-    let transaction_identifier = TransactionIdentifier {
-        hash,
-    };
+    let transaction_identifier = TransactionIdentifier { hash };
 
     let response = TransactionIdentifierResponse {
         transaction_identifier,
@@ -424,26 +446,31 @@ async fn hash(hash_request: ConstructionHashRequest, options: Options) -> Result
     Ok(response)
 }
 
-async fn submit(submit_request: ConstructionSubmitRequest, options: Options) -> Result<TransactionIdentifierResponse, ApiError> {
+async fn submit(
+    submit_request: ConstructionSubmitRequest,
+    options: Options,
+) -> Result<TransactionIdentifierResponse, ApiError> {
     debug!("/construction/submit");
 
     let network_identifier = submit_request.network_identifier;
-    if network_identifier.blockchain != consts::BLOCKCHAIN || network_identifier.network != options.network {
+    if network_identifier.blockchain != consts::BLOCKCHAIN
+        || network_identifier.network != options.network
+    {
         return Err(ApiError::BadNetwork);
     }
 
     let signed_bytes = hex::decode(&submit_request.signed_transaction)?;
-    let signed_transaction: SignedTransaction = lcs::from_bytes(&signed_bytes)
+    let signed_transaction: SignedTransaction = bcs::from_bytes(&signed_bytes)
         .map_err(|_| ApiError::deserialization_failed("SignedTransaction"))?;
 
-    let libra = Libra::new(&options.libra_endpoint);
-    libra.submit(&signed_transaction).await?;
+    let diem = Diem::new(&options.diem_endpoint);
+    diem.submit(&signed_transaction).await?;
 
-    let hash = Transaction::UserTransaction(signed_transaction).hash().to_hex();
+    let hash = Transaction::UserTransaction(signed_transaction)
+        .hash()
+        .to_hex();
 
-    let transaction_identifier = TransactionIdentifier {
-        hash,
-    };
+    let transaction_identifier = TransactionIdentifier { hash };
 
     let response = TransactionIdentifierResponse {
         transaction_identifier,
@@ -482,17 +509,11 @@ impl FromStr for Value {
         if s.is_empty() {
             return Err(anyhow!("empty input"));
         }
-        
-        let (negative, number) = match s.strip_prefix("-") {
-            None => (false, s),
-            Some(num) => (true, num),
-        };
 
-        let v = number.parse::<u64>()?;
-
-        match negative {
-            true => Ok(Value::Debit(v)),
-            false => Ok(Value::Credit(v)),
+        let v = s.parse::<i128>()?;
+        match v < 0 {
+            true => Ok(Value::Debit((-v) as u64)),
+            false => Ok(Value::Credit(v as u64)),
         }
     }
 }
@@ -519,25 +540,30 @@ fn extract_transfer_from_operations(operations: &[Operation]) -> Result<Transfer
         return Err(anyhow!("operations don't represent a transfer"));
     }
 
-    if operations[0].account.is_none() || operations[0].amount.is_none() || operations[1].account.is_none() || operations[1].amount.is_none() {
+    if operations[0].account.is_none()
+        || operations[0].amount.is_none()
+        || operations[1].account.is_none()
+        || operations[1].amount.is_none()
+    {
         return Err(anyhow!("accounts/amounts missing"));
     }
 
-    let (send_account, send_amount, recv_account, recv_amount) = if operations[0].type_ == "sentpayment" {
-        (
-            operations[0].account.as_ref().unwrap(),
-            operations[0].amount.as_ref().unwrap(),
-            operations[1].account.as_ref().unwrap(),
-            operations[1].amount.as_ref().unwrap(),
-        )
-    } else {
-        (
-            operations[1].account.as_ref().unwrap(),
-            operations[1].amount.as_ref().unwrap(),
-            operations[0].account.as_ref().unwrap(),
-            operations[0].amount.as_ref().unwrap(),
-        )
-    };
+    let (send_account, send_amount, recv_account, recv_amount) =
+        if operations[0].type_ == "sentpayment" {
+            (
+                operations[0].account.as_ref().unwrap(),
+                operations[0].amount.as_ref().unwrap(),
+                operations[1].account.as_ref().unwrap(),
+                operations[1].amount.as_ref().unwrap(),
+            )
+        } else {
+            (
+                operations[1].account.as_ref().unwrap(),
+                operations[1].amount.as_ref().unwrap(),
+                operations[0].account.as_ref().unwrap(),
+                operations[0].amount.as_ref().unwrap(),
+            )
+        };
 
     if send_amount.currency != recv_amount.currency {
         return Err(anyhow!("mismatched currencies in ops"));
@@ -558,7 +584,7 @@ fn extract_transfer_from_operations(operations: &[Operation]) -> Result<Transfer
     let receiver = recv_account.address.parse::<AccountAddress>()?;
     let amount = send_value.amount();
     let currency = send_amount.currency.symbol.clone();
- 
+
     Ok(Transfer {
         sender,
         receiver,
