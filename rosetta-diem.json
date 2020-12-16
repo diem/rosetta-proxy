@@ -1,7 +1,7 @@
 {
   "network": {
     "blockchain": "diem",
-    "network": "testing"
+    "network": "testnet"
   },
   "online_url": "http://localhost:3030",
   "data_directory": "diem-data",
@@ -86,7 +86,7 @@
               },
               {
                 "type": "set_variable",
-                "input": "{\"network\": \"testing\", \"blockchain\": \"diem\"}",
+                "input": "{\"network\": \"testnet\", \"blockchain\": \"diem\"}",
                 "output_path": "transfer.network"
               },
               {

@@ -18,4 +18,5 @@ def create_account(key):
 
 faucet = testnet.Faucet(testnet.create_client())
 for account in accounts():
+    print(f"setup account: {account.auth_key.hex()}, {account.account_address.to_hex()}")
     faucet.mint(account.auth_key.hex(), 5_000_000_000, testnet.TEST_CURRENCY_CODE)
