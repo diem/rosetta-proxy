@@ -8,18 +8,18 @@ anyhow = "1.0"
 env_logger = "0.7"
 hex = "0.4"
 futures = "0.3"
-lcs = { package = "libra-canonical-serialization", version = "0.1.0", git = "https://github.com/diem/lcs", rev="7db7669c27408df8e18f6e683ba985338bba96e3" }
-diem-crypto = { version = "0.1.0", git = "https://github.com/diem/diem", rev = "838a46de2ff7d63ee6abeafafdd7584458ec697a" }
-diem-json-rpc-client = { version = "0.1.0", git = "https://github.com/diem/diem", rev = "838a46de2ff7d63ee6abeafafdd7584458ec697a" }
-diem-types = { version = "0.1.0", git = "https://github.com/diem/diem", rev = "838a46de2ff7d63ee6abeafafdd7584458ec697a" }
+bcs = "0.1.2"
+diem-crypto = { version = "0.1.0", git = "https://github.com/diem/diem", rev = "7ffca62b16313208033f3396dd5ec66a335d50a5" }
+diem-json-rpc-client = { version = "0.1.0", git = "https://github.com/diem/diem", rev = "7ffca62b16313208033f3396dd5ec66a335d50a5" }
+diem-types = { version = "0.1.0", git = "https://github.com/diem/diem", rev = "7ffca62b16313208033f3396dd5ec66a335d50a5" }
 log = "0.4"
-move-core-types = { version = "0.1.0", git = "https://github.com/diem/diem", rev = "838a46de2ff7d63ee6abeafafdd7584458ec697a" }
+move-core-types = { version = "0.1.0", git = "https://github.com/diem/diem", rev = "7ffca62b16313208033f3396dd5ec66a335d50a5" }
 once_cell = "1.4"
 reqwest = "0.10"
 serde = { version = "1.0", features = ["derive"] }
 structopt = "0.3"
 thiserror = "1.0"
 tokio = { version = "0.2", features = ["macros"] }
-transaction-builder-generated = { version = "0.1.0", git = "https://github.com/diem/diem", rev = "838a46de2ff7d63ee6abeafafdd7584458ec697a" }
+transaction-builder-generated = { version = "0.1.0", git = "https://github.com/diem/diem", rev = "7ffca62b16313208033f3396dd5ec66a335d50a5" }
 url = "2.1"
 warp = "0.2"

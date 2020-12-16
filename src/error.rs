@@ -16,7 +16,7 @@ pub enum ApiError {
     #[error("deserialization failed: {0}")]
     DeserializationFailed(String),
     #[error("serialization failed: {0:?}")]
-    SerializationFailed(#[from] lcs::Error),
+    SerializationFailed(#[from] bcs::Error),
     #[error("bad transfer operations")]
     BadTransferOperations(String),
     #[error("account not found")]

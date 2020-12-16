@@ -232,11 +232,11 @@ async fn payloads(
         ChainId::new(chain_id),
     );
 
-    let raw_bytes = lcs::to_bytes(&raw_transaction)?;
+    let raw_bytes = bcs::to_bytes(&raw_transaction)?;
     let unsigned_transaction = hex::encode(raw_bytes);
 
     let mut bytes = RawTransactionHasher::seed().to_vec();
-    lcs::serialize_into(&mut bytes, &raw_transaction)?;
+    bcs::serialize_into(&mut bytes, &raw_transaction)?;
 
     let payloads = vec![SigningPayload {
         address: (&sender).into(),
@@ -267,7 +267,7 @@ async fn parse(
 
     let (raw_transaction, account_identifier_signers) = if parse_request.signed {
         let signed_bytes = hex::decode(parse_request.transaction)?;
-        let checked_transaction = lcs::from_bytes::<SignedTransaction>(&signed_bytes)
+        let checked_transaction = bcs::from_bytes::<SignedTransaction>(&signed_bytes)
             .map_err(|_| ApiError::deserialization_failed("SignedTransaction"))?
             .check_signature()
             .map_err(|_| ApiError::BadSignature)?;
@@ -287,7 +287,7 @@ async fn parse(
         (raw_transaction, signers)
     } else {
         let raw_bytes = hex::decode(parse_request.transaction)?;
-        let raw_transaction: RawTransaction = lcs::from_bytes(&raw_bytes)
+        let raw_transaction: RawTransaction = bcs::from_bytes(&raw_bytes)
             .map_err(|_| ApiError::deserialization_failed("RawTransaction"))?;
         (raw_transaction, vec![])
     };
@@ -323,7 +323,7 @@ async fn parse(
             },
             related_operations: None,
             type_: "sentpayment".to_string(),
-            status: Option::None,
+            status: None,
             account: Some(AccountIdentifier {
                 address: (&raw_transaction.sender()).into(),
                 sub_account: None,
@@ -346,7 +346,7 @@ async fn parse(
                 network_index: None,
             }]),
             type_: "receivedpayment".to_string(),
-            status: Option::None,
+            status: None,
             account: Some(AccountIdentifier {
                 address: (&payee).into(),
                 sub_account: None,
@@ -383,7 +383,7 @@ async fn combine(
     }
 
     let raw_bytes = hex::decode(combine_request.unsigned_transaction)?;
-    let raw_transaction: RawTransaction = lcs::from_bytes(&raw_bytes)
+    let raw_transaction: RawTransaction = bcs::from_bytes(&raw_bytes)
         .map_err(|_| ApiError::deserialization_failed("RawTransaction"))?;
 
     if combine_request.signatures.len() != 1 {
@@ -409,7 +409,7 @@ async fn combine(
 
     let signed_transaction = SignedTransaction::new(raw_transaction, public_key, signature);
     // TODO: verify sig
-    let signed_bytes = lcs::to_bytes(&signed_transaction)?;
+    let signed_bytes = bcs::to_bytes(&signed_transaction)?;
     let signed_transaction = hex::encode(&signed_bytes);
 
     let response = ConstructionCombineResponse { signed_transaction };
@@ -431,7 +431,7 @@ async fn hash(
     }
 
     let signed_bytes = hex::decode(&hash_request.signed_transaction)?;
-    let signed_transaction: SignedTransaction = lcs::from_bytes(&signed_bytes)
+    let signed_transaction: SignedTransaction = bcs::from_bytes(&signed_bytes)
         .map_err(|_| ApiError::deserialization_failed("SignedTransaction"))?;
     let hash = Transaction::UserTransaction(signed_transaction)
         .hash()
@@ -460,7 +460,7 @@ async fn submit(
     }
 
     let signed_bytes = hex::decode(&submit_request.signed_transaction)?;
-    let signed_transaction: SignedTransaction = lcs::from_bytes(&signed_bytes)
+    let signed_transaction: SignedTransaction = bcs::from_bytes(&signed_bytes)
         .map_err(|_| ApiError::deserialization_failed("SignedTransaction"))?;
 
     let diem = Diem::new(&options.diem_endpoint);
